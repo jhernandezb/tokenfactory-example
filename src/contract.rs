@@ -6,7 +6,7 @@ use anybuf::Anybuf;
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    ensure, to_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
+    ensure, to_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Response,
     StdResult,
 };
 use cw2::set_contract_version;
@@ -57,6 +57,8 @@ pub fn execute(
 
 pub mod execute {
 
+    use cosmwasm_std::BankMsg;
+
     use super::*;
     pub fn try_create_denom(env: Env, subdenom: String) -> Result<Response, ContractError> {
         let sender = env.contract.address.into();
@@ -75,7 +77,7 @@ pub mod execute {
         // construct message and convert them into cosmos message
         // (notice `CosmosMsg` type and `.into()`)
         let msg_create_denom = CosmosMsg::Stargate {
-            type_url: "/osmosis.tokenfactory.v1beta1.Msg/CreateDenom".to_string(),
+            type_url: "/osmosis.tokenfactory.v1beta1.MsgCreateDenom".to_string(),
             value: encode_msg_create_denom(sender, subdenom).into(),
         };
 
@@ -93,22 +95,29 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         let admin = STATE.load(deps.storage)?.owner;
         ensure!(info.sender == admin, ContractError::Unauthorized {});
-        let mint_to_adress = deps.api.addr_validate(&mint_to)?;
+        let mint_to_adress = deps.api.addr_validate(&mint_to.clone())?;
         let account = env.contract.address.into();
 
         let msg_create_denom: CosmosMsg = MsgMint {
             sender: account,
             amount: Some(osmosis_std::types::cosmos::base::v1beta1::Coin {
-                amount: amount.amount.to_string(),
-                denom: amount.denom,
+                amount: amount.clone().amount.to_string(),
+                denom: amount.clone().denom,
             }),
             mint_to_address: mint_to_adress.to_string(),
         }
         .into();
 
+        let msg_bank_send = BankMsg::Send {
+            to_address: mint_to_adress.to_string(),
+            amount: vec![amount.clone()],
+        };
         Ok(Response::new()
             .add_message(msg_create_denom)
-            .add_attribute("method", "mint_to"))
+            .add_message(msg_bank_send)
+            .add_attribute("method", "mint_to")
+            .add_attribute("mint_to_address", mint_to)
+            .add_attribute("mint_amount", amount.to_string()))
     }
 
     pub fn try_mint_to2(
@@ -122,17 +131,27 @@ pub mod execute {
         ensure!(info.sender == admin, ContractError::Unauthorized {});
         let mint_to_adress = deps.api.addr_validate(&mint_to)?;
         let account = env.contract.address.into();
-
+        let mut out_msgs: Vec<CosmosMsg> = Vec::with_capacity(2);
         // construct message and convert them into cosmos message
         // (notice `CosmosMsg` type and `.into()`)
-        let msg_mint = CosmosMsg::Stargate {
-            type_url: "/osmosis.tokenfactory.v1beta1.Msg/Mint".to_string(),
+        out_msgs.push(CosmosMsg::Stargate {
+            type_url: "/osmosis.tokenfactory.v1beta1.MsgMint".to_string(),
             value: encode_msg_mint(account, &amount, mint_to_adress.to_string()).into(),
-        };
+        });
+
+        out_msgs.push(
+            BankMsg::Send {
+                to_address: mint_to_adress.to_string(),
+                amount: vec![amount.clone()],
+            }
+            .into(),
+        );
 
         Ok(Response::new()
-            .add_message(msg_mint)
-            .add_attribute("method", "mint_to2"))
+            .add_messages(out_msgs)
+            .add_attribute("method", "mint_to")
+            .add_attribute("mint_to_address", mint_to)
+            .add_attribute("mint_amount", amount.to_string()))
     }
 }
 
@@ -152,6 +171,11 @@ pub mod query {
         let res = TokenfactoryQuerier::new(&deps.querier).denom_authority_metadata(denom)?;
         Ok(res.authority_metadata)
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    Ok(Response::new())
 }
 
 fn encode_msg_create_denom(sender: String, subdenom: String) -> Vec<u8> {
