@@ -1,17 +1,19 @@
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{
+    AuthorityMetadataResponse, DenomAuthorityMetadata2, ExecuteMsg, InstantiateMsg, QueryMsg,
+};
 use crate::state::{State, STATE};
 use anybuf::Anybuf;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    ensure, to_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Response,
-    StdResult,
+    ensure, to_binary, to_vec, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
+    Response, StdResult,
 };
 use cw2::set_contract_version;
 use osmosis_std::types::osmosis::tokenfactory::v1beta1::{
-    DenomAuthorityMetadata, TokenfactoryQuerier,
+    DenomAuthorityMetadata, QueryDenomAuthorityMetadataResponse, TokenfactoryQuerier,
 };
 use osmosis_std::types::osmosis::tokenfactory::v1beta1::{MsgCreateDenom, MsgMint};
 // version info for migration info
@@ -161,11 +163,26 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetDenomAuthorityMetadata { denom } => {
             to_binary(&query::denom_metadata(deps, denom)?)
         }
+        QueryMsg::GetDenomAuthorityMetadata2 { denom } => {
+            to_binary(&query::denom_metadata2(deps, denom)?)
+        }
     }
 }
 
 pub mod query {
+
     use super::*;
+    pub fn denom_metadata2(
+        deps: Deps,
+        denom: String,
+    ) -> StdResult<Option<DenomAuthorityMetadata2>> {
+        let res: AuthorityMetadataResponse =
+            deps.querier.query(&cosmwasm_std::QueryRequest::Stargate {
+                path: "/osmosis.tokenfactory.v1beta1.Query/DenomAuthorityMetadata".to_string(),
+                data: Binary(encode_query_denom_authority_metadata_request(denom)),
+            })?;
+        Ok(res.authority_metadata)
+    }
 
     pub fn denom_metadata(deps: Deps, denom: String) -> StdResult<Option<DenomAuthorityMetadata>> {
         let res = TokenfactoryQuerier::new(&deps.querier).denom_authority_metadata(denom)?;
@@ -194,4 +211,27 @@ fn encode_msg_mint(sender: String, amount: &Coin, mint_to_address: String) -> Ve
         .append_message(2, &coin)
         .append_string(3, mint_to_address)
         .into_vec()
+}
+
+fn encode_query_denom_authority_metadata_request(denom: String) -> Vec<u8> {
+    Anybuf::new().append_string(1, denom).into_vec()
+}
+
+mod tests {
+    use super::encode_query_denom_authority_metadata_request;
+    use cosmwasm_std::{
+        ensure, to_binary, to_vec, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
+        Response, StdResult,
+    };
+    #[test]
+    fn proper_initialization() {
+        let v = encode_query_denom_authority_metadata_request(
+            "factory/stars14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9srsl6sm/uusdc"
+                .to_string(),
+        );
+        dbg!("v", v.clone());
+        let vb = Binary(v);
+
+        dbg!("v", Some(vb));
+    }
 }
