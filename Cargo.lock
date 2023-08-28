@@ -20,6 +20,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e999941b234f3131b00bc13c22d06e8c5ff726d1b6318ac7eb276997bbb4fef0"
 
 [[package]]
+name = "anybuf"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f14538dd5b6befdc12b11aae1dddee64b670534d4fdbd28057bcc7c976c0e4eb"
+
+[[package]]
 name = "anyhow"
 version = "1.0.75"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -856,6 +862,7 @@ dependencies = [
 name = "tokenfactory-example"
 version = "0.1.0"
 dependencies = [
+ "anybuf",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
