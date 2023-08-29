@@ -5,8 +5,8 @@ use cosmwasm_std::{
     to_binary, Addr, CosmosMsg, CustomQuery, Querier, QuerierWrapper, StdResult, WasmMsg, WasmQuery,
 };
 
-use crate::msg::{ExecuteMsg, QueryMsg};
-use osmosis_std::types::osmosis::tokenfactory::v1beta1::DenomAuthorityMetadata;
+use crate::msg::{DenomAuthorityMetadata, ExecuteMsg, QueryMsg};
+
 /// CwTemplateContract is a wrapper around Addr that provides a lot of helpers
 /// for working with this.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
